@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.juku.mybatis.demo.mapper.BlogMapper">
+  <select id="selectBlog" resultMap="BlogResultMap">
+    SELECT * from BLOG WHERE ID = #{id}
+  </select>
+  
+  <resultMap type="Blog" id="BlogResultMap">
+  	<id property="ID" column="id"/>
+  	<result property="TITLE" column="title"/>
+  	<result property="CONTENT" column="content"/>
+  </resultMap>
+</mapper>

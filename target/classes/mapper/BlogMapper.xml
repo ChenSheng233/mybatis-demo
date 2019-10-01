@@ -7,6 +7,7 @@
     SELECT * from BLOG WHERE ID = #{id}
   </select>
   
+  <!-- Blog:这里使用类型别名alias -->
   <resultMap type="Blog" id="BlogResultMap">
   	<id property="ID" column="id"/>
   	<result property="TITLE" column="title"/>

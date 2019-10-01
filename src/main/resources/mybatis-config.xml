@@ -4,7 +4,7 @@
   "http://mybatis.org/dtd/mybatis-3-config.dtd">
 <configuration>
 	  <typeAliases>
-  	<typeAlias type="com.juku.mybatis.demo.model" alias="Blog"/>
+  	<typeAlias type="com.juku.mybatis.demo.model.Blog" alias="Blog"/>
   </typeAliases>
   <environments default="development">
     <environment id="development">

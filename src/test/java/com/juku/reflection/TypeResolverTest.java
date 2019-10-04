@@ -90,7 +90,7 @@ public class TypeResolverTest {
 	
 	@Test
 	public void test8() throws NoSuchMethodException, SecurityException {
-		Class<?> clazz = XmlDefaultRestView.class;
+		Class<?> clazz = DefaultRestView.class;
 		Method method = clazz.getMethod("getData");
 		Type type = TypeParameterResolver.resolveReturnType(method, clazz);
 		
@@ -100,27 +100,40 @@ public class TypeResolverTest {
 		type = TypeResolver.resolveReturnType(method, clazz);	
 		System.out.println(type);
 		
-//		clazz = ScriptDefaultRestView.class;
-//		method = clazz.getMethod("getData");
-//		type = TypeParameterResolver.resolveReturnType(method, clazz);
-//		System.out.println(type);
-//		
-//		type = TypeResolver.resolveReturnType(method, clazz);
-//		System.out.println(type);
-	}
-
-	@Test
-	public void test9() throws NoSuchMethodException, SecurityException {
-		Class<?> clazz = (new RestView<String>()).getClass();
-		Method method = clazz.getMethod("getData");
-		Type type = TypeParameterResolver.resolveReturnType(method, clazz);
+		Long now  = System.currentTimeMillis();
+		clazz = ScriptDefaultRestView.class;
+		method = clazz.getMethod("getData");
+		type = TypeParameterResolver.resolveReturnType(method, clazz);
+		Long time = System.currentTimeMillis() - now;
+		System.out.println(time);
 		System.out.println(type);
+		
+		now = System.currentTimeMillis();
+		type = TypeResolver.resolveReturnType(method, clazz);
+		time = System.currentTimeMillis() - now;
+		System.out.println(time);
+		System.out.println(type);
+
+	
+		
 		
 		clazz = DefaultRestView.class;
 		method = clazz.getMethod("getRecords");
+		now = System.currentTimeMillis();
 		type = TypeParameterResolver.resolveReturnType(method, clazz);
+		time = System.currentTimeMillis() - now;
+		System.out.println(time);
 		System.out.println(type);
+		
+
+		now = System.currentTimeMillis();
+		type = TypeResolver.resolveReturnType(method, clazz);
+		time = System.currentTimeMillis() - now;
+		System.out.println(time);
+		System.out.println(type);
+	
 	}
+
 	
 	class ScriptDefaultRestView extends RestView<List<Method>>{
 		

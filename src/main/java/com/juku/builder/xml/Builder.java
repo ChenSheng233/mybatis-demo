@@ -36,6 +36,7 @@ import org.apache.ibatis.mapping.StatementType;
 import org.apache.ibatis.parsing.XNode;
 import org.apache.ibatis.parsing.XPathParser;
 import org.apache.ibatis.scripting.LanguageDriver;
+import org.apache.ibatis.scripting.xmltags.XMLScriptBuilder;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
@@ -55,7 +56,8 @@ public class Builder {
 //		_XMLMapperBuilder();
 //		_ResultMapResolver();
 //		_MapperBuilderAssistant();
-		_LanguageDriver();
+//		_LanguageDriver();
+		_XMLScriptBuilder();
 	}
 
 	public static void _XMLConfigBuilder() throws IOException {
@@ -281,7 +283,99 @@ public class Builder {
 
 	}
 
+	public static void _XMLScriptBuilder() throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, ClassNotFoundException, IOException {
+		String id = "BlogResultMap";
+		Class<?> typeClass = Blog.class;
+		String resource = "./mapper/BlogMapper.xml";
+		String currentNamespace = "com.juku.mybatis.demo.mapper.BlogMapper";
+		String extend = null;
+		Boolean autoMapping = true;
+		Discriminator discriminator = null;
+		Configuration configuration = new Configuration();
+		prepareConfiguration(configuration);
+		
+		MapperBuilderAssistant builderAssistant = new MapperBuilderAssistant(configuration, resource);
+		builderAssistant.setCurrentNamespace(currentNamespace);
+		// 添加mapper接口
+		String namespace = builderAssistant.getCurrentNamespace();
+		pareparedMapper(namespace, configuration);
+		
+		
+		List<ResultMapping> resultMappings = new ArrayList<>();
+		pareparedResultMapping(resultMappings, configuration);
+		
+		ResultMapResolver resultMapResolver = new ResultMapResolver(builderAssistant, id, typeClass, extend,
+				discriminator, resultMappings, autoMapping);
+		// 内部使用MapperBuilderAssistant将ResultMap添加进configuration
+		resultMapResolver.resolve();
+		
+		
+		Class<?> parameterTypeClass = null;
+		
+		XPathParser parser = new XPathParser(Resources.getResourceAsStream(resource), true,
+				configuration.getVariables(), new XMLMapperEntityResolver());
+		XNode context = parser.evalNode("/mapper");
+		List<XNode> list = context.evalNodes("select|insert|update|delete");
+		for(XNode script:list) {
+			String scriptId = script.getStringAttribute("id");
+			String nodeName = script.getNode().getNodeName();
+			SqlCommandType sqlCommandType = SqlCommandType.valueOf(nodeName.toUpperCase(Locale.ENGLISH));
+			KeyGenerator keyGenerator;
+			String keyStatementId = id + SelectKeyGenerator.SELECT_KEY_SUFFIX;
+			keyStatementId = builderAssistant.applyCurrentNamespace(keyStatementId, true);
+			if (configuration.hasKeyGenerator(keyStatementId)) {
+				keyGenerator = configuration.getKeyGenerator(keyStatementId);
+			} else {
+				keyGenerator = script.getBooleanAttribute("useGeneratedKeys",
+						configuration.isUseGeneratedKeys() && SqlCommandType.INSERT.equals(sqlCommandType))
+								? Jdbc3KeyGenerator.INSTANCE
+								: NoKeyGenerator.INSTANCE;
+			}
+			String lang = script.getStringAttribute("lang");
+			LanguageDriver languageDriver = configuration
+					.getLanguageDriver(configuration.getTypeAliasRegistry().resolveAlias(lang));
+			String parameterMap = script.getStringAttribute("parameterMap");
+			XMLScriptBuilder builder = new XMLScriptBuilder(configuration, script, parameterTypeClass);
+			SqlSource sqlSource = builder.parseScriptNode();
+			//SqlSource sqlSource = languageDriver.createSqlSource(configuration, script, parameterTypeClass);
+			StatementType statementType = StatementType
+					.valueOf(script.getStringAttribute("statementType", StatementType.PREPARED.toString()));
+			Integer fetchSize = script.getIntAttribute("fetchSize");
+			Integer timeout = script.getIntAttribute("timeout");
+			String resultType = script.getStringAttribute("resultType");
+			Class<?> resultTypeClass = configuration.getTypeAliasRegistry().resolveAlias(resultType);
+			Class<?> parameterType = configuration.getTypeAliasRegistry()
+					.resolveAlias(script.getStringAttribute("parameterType"));
+			String resultMap = script.getStringAttribute("resultMap");
+			boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
+			boolean flushCache = script.getBooleanAttribute("flushCache", !isSelect);
+			boolean useCache = script.getBooleanAttribute("useCache", isSelect);
+			boolean resultOrdered = script.getBooleanAttribute("resultOrdered", false);
+			ResultSetType resultSetTypeEnum = resolveResultSetType(script.getStringAttribute("resultSetType"));
+			if (resultSetTypeEnum == null) {
+				resultSetTypeEnum = configuration.getDefaultResultSetType();
+			}
+			String keyProperty = script.getStringAttribute("keyProperty");
+			String databaseId = script.getStringAttribute("databaseId");
+			String resultSets = script.getStringAttribute("resultSets");
+			String keyColumn = script.getStringAttribute("keyColumn");
+			builderAssistant.addMappedStatement(scriptId, sqlSource, statementType, sqlCommandType, fetchSize, timeout,
+					parameterMap, parameterType, resultMap, resultTypeClass, resultSetTypeEnum, flushCache, useCache,
+					resultOrdered, keyGenerator, keyProperty, keyColumn, databaseId, languageDriver, resultSets);
+		
+		}
+		
+		DefaultSqlSessionFactory sqlSessionFactory = new DefaultSqlSessionFactory(configuration);
+		SqlSession sqlSession = sqlSessionFactory.openSession();
+		BlogMapper blogMapper = sqlSession.getMapper(BlogMapper.class);
+		Blog blog = blogMapper.selectBlog(1);
+		System.out.println(ReflectionToStringBuilder.toString(blog, ToStringStyle.MULTI_LINE_STYLE));
+
+	}
 	
+	public static void _SqlSource() {
+		
+	}
 	
 	protected static ResultSetType resolveResultSetType(String alias) {
 		if (alias == null) {

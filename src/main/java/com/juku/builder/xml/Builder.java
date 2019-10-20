@@ -3,8 +3,10 @@ package com.juku.builder.xml;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 
 import javax.sql.DataSource;
@@ -36,13 +38,19 @@ import org.apache.ibatis.mapping.StatementType;
 import org.apache.ibatis.parsing.XNode;
 import org.apache.ibatis.parsing.XPathParser;
 import org.apache.ibatis.scripting.LanguageDriver;
+import org.apache.ibatis.scripting.defaults.RawSqlSource;
+import org.apache.ibatis.scripting.xmltags.MixedSqlNode;
+import org.apache.ibatis.scripting.xmltags.SqlNode;
+import org.apache.ibatis.scripting.xmltags.StaticTextSqlNode;
+import org.apache.ibatis.scripting.xmltags.TextSqlNode;
 import org.apache.ibatis.scripting.xmltags.XMLScriptBuilder;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.SqlSession;
-import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.session.defaults.DefaultSqlSessionFactory;
 import org.apache.ibatis.transaction.TransactionFactory;
 import org.apache.ibatis.type.TypeAliasRegistry;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import com.juku.mybatis.demo.mapper.BlogMapper;
 import com.juku.mybatis.demo.model.Blog;
@@ -54,10 +62,10 @@ public class Builder {
 			InvocationTargetException, SecurityException, NoSuchMethodException, ClassNotFoundException {
 //		_XMLConfigBuilder();
 //		_XMLMapperBuilder();
-//		_ResultMapResolver();
-//		_MapperBuilderAssistant();
+//		_ResultMapResolver();//		_MapperBuilderAssistant();
 //		_LanguageDriver();
-		_XMLScriptBuilder();
+//		_XMLScriptBuilder();
+		_MixedSqlNode();
 	}
 
 	public static void _XMLConfigBuilder() throws IOException {
@@ -332,12 +340,6 @@ public class Builder {
 								: NoKeyGenerator.INSTANCE;
 			}
 			String lang = script.getStringAttribute("lang");
-			LanguageDriver languageDriver = configuration
-					.getLanguageDriver(configuration.getTypeAliasRegistry().resolveAlias(lang));
-			String parameterMap = script.getStringAttribute("parameterMap");
-			XMLScriptBuilder builder = new XMLScriptBuilder(configuration, script, parameterTypeClass);
-			SqlSource sqlSource = builder.parseScriptNode();
-			//SqlSource sqlSource = languageDriver.createSqlSource(configuration, script, parameterTypeClass);
 			StatementType statementType = StatementType
 					.valueOf(script.getStringAttribute("statementType", StatementType.PREPARED.toString()));
 			Integer fetchSize = script.getIntAttribute("fetchSize");
@@ -358,7 +360,15 @@ public class Builder {
 			String keyProperty = script.getStringAttribute("keyProperty");
 			String databaseId = script.getStringAttribute("databaseId");
 			String resultSets = script.getStringAttribute("resultSets");
-			String keyColumn = script.getStringAttribute("keyColumn");
+			String keyColumn = script.getStringAttribute("keyColumn");			
+			LanguageDriver languageDriver = configuration
+					.getLanguageDriver(configuration.getTypeAliasRegistry().resolveAlias(lang));
+			String parameterMap = script.getStringAttribute("parameterMap");
+			
+			XMLScriptBuilder builder = new XMLScriptBuilder(configuration, script, parameterTypeClass);
+			SqlSource sqlSource = builder.parseScriptNode();
+
+			
 			builderAssistant.addMappedStatement(scriptId, sqlSource, statementType, sqlCommandType, fetchSize, timeout,
 					parameterMap, parameterType, resultMap, resultTypeClass, resultSetTypeEnum, flushCache, useCache,
 					resultOrdered, keyGenerator, keyProperty, keyColumn, databaseId, languageDriver, resultSets);
@@ -373,9 +383,133 @@ public class Builder {
 
 	}
 	
-	public static void _SqlSource() {
+	public static void _MixedSqlNode() throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, ClassNotFoundException, IOException {
+		String id = "BlogResultMap";
+		Class<?> typeClass = Blog.class;
+		String resource = "./mapper/BlogMapper.xml";
+		String currentNamespace = "com.juku.mybatis.demo.mapper.BlogMapper";
+		String extend = null;
+		Boolean autoMapping = true;
+		Discriminator discriminator = null;
+		Class<?> parameterTypeClass = null;
+		Configuration configuration = new Configuration();
+		prepareConfiguration(configuration);
+		
+		MapperBuilderAssistant builderAssistant = new MapperBuilderAssistant(configuration, resource);
+		builderAssistant.setCurrentNamespace(currentNamespace);
+		// 添加mapper接口
+		String namespace = builderAssistant.getCurrentNamespace();
+		pareparedMapper(namespace, configuration);
+		
+		
+		List<ResultMapping> resultMappings = new ArrayList<>();
+		pareparedResultMapping(resultMappings, configuration);
+		
+		ResultMapResolver resultMapResolver = new ResultMapResolver(builderAssistant, id, typeClass, extend,
+				discriminator, resultMappings, autoMapping);
+		// 内部使用MapperBuilderAssistant将ResultMap添加进configuration
+		resultMapResolver.resolve();
+		
+		XPathParser parser = new XPathParser(Resources.getResourceAsStream(resource), true,
+				configuration.getVariables(), new XMLMapperEntityResolver());
+		XNode context = parser.evalNode("/mapper");
+		List<XNode> list = context.evalNodes("select|insert|update|delete");
+		for(XNode script:list) {
+			String scriptId = script.getStringAttribute("id");
+			String nodeName = script.getNode().getNodeName();
+			SqlCommandType sqlCommandType = SqlCommandType.valueOf(nodeName.toUpperCase(Locale.ENGLISH));
+			KeyGenerator keyGenerator;
+			String keyStatementId = id + SelectKeyGenerator.SELECT_KEY_SUFFIX;
+			keyStatementId = builderAssistant.applyCurrentNamespace(keyStatementId, true);
+			if (configuration.hasKeyGenerator(keyStatementId)) {
+				keyGenerator = configuration.getKeyGenerator(keyStatementId);
+			} else {
+				keyGenerator = script.getBooleanAttribute("useGeneratedKeys",
+						configuration.isUseGeneratedKeys() && SqlCommandType.INSERT.equals(sqlCommandType))
+								? Jdbc3KeyGenerator.INSTANCE
+								: NoKeyGenerator.INSTANCE;
+			}
+			String lang = script.getStringAttribute("lang");
+			StatementType statementType = StatementType
+					.valueOf(script.getStringAttribute("statementType", StatementType.PREPARED.toString()));
+			Integer fetchSize = script.getIntAttribute("fetchSize");
+			Integer timeout = script.getIntAttribute("timeout");
+			String resultType = script.getStringAttribute("resultType");
+			Class<?> resultTypeClass = configuration.getTypeAliasRegistry().resolveAlias(resultType);
+			Class<?> parameterType = configuration.getTypeAliasRegistry()
+					.resolveAlias(script.getStringAttribute("parameterType"));
+			String resultMap = script.getStringAttribute("resultMap");
+			boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
+			boolean flushCache = script.getBooleanAttribute("flushCache", !isSelect);
+			boolean useCache = script.getBooleanAttribute("useCache", isSelect);
+			boolean resultOrdered = script.getBooleanAttribute("resultOrdered", false);
+			ResultSetType resultSetTypeEnum = resolveResultSetType(script.getStringAttribute("resultSetType"));
+			if (resultSetTypeEnum == null) {
+				resultSetTypeEnum = configuration.getDefaultResultSetType();
+			}
+			String keyProperty = script.getStringAttribute("keyProperty");
+			String databaseId = script.getStringAttribute("databaseId");
+			String resultSets = script.getStringAttribute("resultSets");
+			String keyColumn = script.getStringAttribute("keyColumn");			
+			
+			
+			LanguageDriver languageDriver = configuration
+					.getLanguageDriver(configuration.getTypeAliasRegistry().resolveAlias(lang));
+			String parameterMap = script.getStringAttribute("parameterMap");
+			
+
+			MixedSqlNode rootSqlNode = pareparedMixedSqlNode(script);
+			SqlSource sqlSource = new RawSqlSource(configuration,rootSqlNode,parameterType);
+
+			    
+
+			builderAssistant.addMappedStatement(scriptId, sqlSource, statementType, sqlCommandType, fetchSize, timeout,
+					parameterMap, parameterType, resultMap, resultTypeClass, resultSetTypeEnum, flushCache, useCache,
+					resultOrdered, keyGenerator, keyProperty, keyColumn, databaseId, languageDriver, resultSets);
+		
+		}
+		DefaultSqlSessionFactory sqlSessionFactory = new DefaultSqlSessionFactory(configuration);
+		SqlSession sqlSession = sqlSessionFactory.openSession();
+		BlogMapper blogMapper = sqlSession.getMapper(BlogMapper.class);
+		Blog blog = blogMapper.selectBlog(1);
+		System.out.println(ReflectionToStringBuilder.toString(blog, ToStringStyle.MULTI_LINE_STYLE));
 		
 	}
+	
+	public static MixedSqlNode pareparedMixedSqlNode(XNode node) {
+		boolean isDynamic;
+		MixedSqlNode mixedSqlNode = null;
+		 List<SqlNode> contents = new ArrayList<>();
+		 NodeList children = node.getNode().getChildNodes();
+		    for (int i = 0; i < children.getLength(); i++) {
+		        XNode child = node.newXNode(children.item(i));
+		        if (child.getNode().getNodeType() == Node.CDATA_SECTION_NODE || child.getNode().getNodeType() == Node.TEXT_NODE) {
+		      	  // 非动态SQL
+		          String data = child.getStringBody("");
+		          TextSqlNode textSqlNode = new TextSqlNode(data);
+		          if (textSqlNode.isDynamic()) {
+		            contents.add(textSqlNode);
+		            isDynamic = true;
+		          } else {
+		            contents.add(new StaticTextSqlNode(data));
+		          }
+		        } 
+//		        else if (child.getNode().getNodeType() == Node.ELEMENT_NODE) { // issue #628
+//		      	  // 动态SQL
+//		          String childNodeName = child.getNode().getNodeName();
+//		          NodeHandler handler = nodeHandlerMap.get(childNodeName);
+//		          if (handler == null) {
+//		            throw new BuilderException("Unknown element <" + childNodeName + "> in SQL statement.");
+//		          }
+//		          handler.handleNode(child, contents);
+//		          isDynamic = true;
+//		        }
+		      }
+		    return new MixedSqlNode(contents);
+		    
+	}
+	
+	
 	
 	protected static ResultSetType resolveResultSetType(String alias) {
 		if (alias == null) {

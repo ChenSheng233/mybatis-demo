@@ -5,6 +5,7 @@
 <configuration>
 	  <typeAliases>
   	<typeAlias type="com.juku.mybatis.demo.model.Blog" alias="Blog"/>
+  	<typeAlias type="com.juku.mybatis.demo.model.EnterpriseProcess" alias="enterpriseProcess"/>
   </typeAliases>
   <environments default="development">
     <environment id="development">
@@ -19,6 +20,7 @@
   </environments>
   <mappers>
     <mapper resource="./mapper/BlogMapper.xml"/>
+    <mapper resource="./mapper/EnterpriseProcessMapper.xml"/>
   </mappers>
 
 </configuration>
